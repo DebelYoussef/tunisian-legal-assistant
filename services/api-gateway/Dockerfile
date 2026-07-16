@@ -2,8 +2,9 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-# System deps kept minimal; asyncpg ships its own C extension wheels.
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Retry apt-get to handle transient network failures on CI
+RUN apt-get update --fix-missing || apt-get update --fix-missing || true && \
+    apt-get install -y --no-install-recommends \
         curl \
     && rm -rf /var/lib/apt/lists/*
 
@@ -12,7 +13,6 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 
-# Run as a non-root user
 RUN useradd --create-home --shell /bin/bash appuser
 USER appuser
 
