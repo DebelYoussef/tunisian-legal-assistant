@@ -8,6 +8,8 @@ import {
   createChatSession,
   deleteChatSession,
   queryLegalDatabase,
+  updateSessionTitle,
+  getSessionMessages,
   RagSource,
   ChatSession,
 } from '@/lib/api'
@@ -37,6 +39,7 @@ export default function ChatSessionPage() {
   const [isSending, setIsSending] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(true)
   const [sources, setSources] = useState<RagSource[]>([])
+  const [titleGenerated, setTitleGenerated] = useState(false)
 
   // Check authentication
   useEffect(() => {
@@ -58,10 +61,18 @@ export default function ChatSessionPage() {
       setIsLoading(true)
       const sess = await getChatSessions()
       setSessions(sess)
-      // Messages are loaded from chat history; for now start empty
-      setMessages([])
+
+      const msgs = await getSessionMessages(sessionId)
+      setMessages(msgs.map(m => ({
+        id: m.id,
+        role: m.role,
+        content: m.content,
+        createdAt: m.created_at,
+        sources: []
+      })) ?? [])
     } catch (error) {
       console.error('[v0] Failed to load data:', error)
+      setMessages([])
     } finally {
       setIsLoading(false)
     }
@@ -80,6 +91,23 @@ export default function ChatSessionPage() {
     setIsSending(true)
 
     try {
+      // Auto-generate title from first message
+      if (!titleGenerated && messages.length === 0) {
+        const generatedTitle = content.substring(0, 40)
+        try {
+          await updateSessionTitle(sessionId, generatedTitle)
+          setTitleGenerated(true)
+          // Update the session in the list
+          setSessions((prev) =>
+            prev.map((s) =>
+              s.id === sessionId ? { ...s, title: generatedTitle } : s
+            )
+          )
+        } catch (err) {
+          console.error('[v0] Failed to auto-generate title:', err)
+        }
+      }
+
       // Query RAG endpoint
       const response = await queryLegalDatabase(content, sessionId)
 
@@ -134,6 +162,12 @@ export default function ChatSessionPage() {
     router.push('/login')
   }
 
+  const handleUpdateSession = (id: string, title: string) => {
+    setSessions((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, title } : s))
+    )
+  }
+
   const currentSession = sessions.find((s) => s.id === sessionId)
 
   return (
@@ -145,6 +179,7 @@ export default function ChatSessionPage() {
         onNewChat={handleNewChat}
         onDeleteSession={handleDeleteSession}
         onLogout={handleLogout}
+        onUpdateSession={handleUpdateSession}
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
       />

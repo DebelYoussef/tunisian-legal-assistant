@@ -132,6 +132,19 @@ export async function getChatSessions(): Promise<ChatSession[]> {
 }
 
 /**
+ * Update a chat session title
+ * PATCH /sessions/{id}
+ */
+export async function updateSessionTitle(sessionId: string, title: string): Promise<ChatSession> {
+  const response = await authenticatedFetch(`/sessions/${sessionId}`, {
+    method: 'PATCH',
+    body: JSON.stringify({ title }),
+  })
+
+  return handleResponse<ChatSession>(response)
+}
+
+/**
  * Delete a chat session
  * DELETE /sessions/{id}
  */
@@ -178,4 +191,24 @@ export async function queryLegalDatabase(
   })
 
   return handleResponse<RagResponse>(response)
+}
+
+/**
+ * Message from backend
+ */
+export interface BackendMessage {
+  id: string
+  session_id: string
+  role: 'user' | 'assistant'
+  content: string
+  created_at: string
+}
+
+/**
+ * Get all messages for a chat session
+ * GET /sessions/{sessionId}/messages
+ */
+export async function getSessionMessages(sessionId: string): Promise<BackendMessage[]> {
+  const response = await authenticatedFetch(`/sessions/${sessionId}/messages`)
+  return handleResponse<BackendMessage[]>(response)
 }

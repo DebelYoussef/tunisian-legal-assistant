@@ -1,13 +1,22 @@
 'use client'
 
-import { ChatSession } from '@/lib/api'
-import { Plus, MessageSquare, MoreVertical, Trash2, LogOut } from 'lucide-react'
-import Link from 'next/link'
+import { ChatSession, updateSessionTitle } from '@/lib/api'
+import { Plus, MessageSquare, MoreVertical, Trash2, LogOut, Edit2, Check, X } from 'lucide-react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useState } from 'react'
 import { useTheme } from 'next-themes'
 import { Sun, Moon } from 'lucide-react'
 import Image from 'next/image'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
 
 interface SidebarProps {
   sessions: ChatSession[]
@@ -15,6 +24,7 @@ interface SidebarProps {
   onNewChat: () => void
   onDeleteSession: (id: string) => void
   onLogout: () => void
+  onUpdateSession?: (id: string, title: string) => void
   isOpen?: boolean
   onClose?: () => void
 }
@@ -25,26 +35,55 @@ export function Sidebar({
   onNewChat,
   onDeleteSession,
   onLogout,
+  onUpdateSession,
   isOpen = true,
   onClose,
 }: SidebarProps) {
   const router = useRouter()
-  const pathname = usePathname()
   const { theme, setTheme } = useTheme()
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [sessionToDelete, setSessionToDelete] = useState<string | null>(null)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [editingTitle, setEditingTitle] = useState('')
 
   const handleSelectSession = (id: string) => {
     router.push(`/chat/${id}`)
     onClose?.()
   }
 
-  const handleDeleteSession = (e: React.MouseEvent, id: string) => {
-    e.preventDefault()
-    e.stopPropagation()
-    if (confirm('Êtes-vous sûr de vouloir supprimer cette conversation ?')) {
-      onDeleteSession(id)
+  const handleDeleteSession = () => {
+    if (sessionToDelete) {
+      onDeleteSession(sessionToDelete)
+      setDeleteDialogOpen(false)
+      setSessionToDelete(null)
       setOpenMenuId(null)
     }
+  }
+
+  const handleRenameStart = (session: ChatSession) => {
+    setEditingId(session.id)
+    setEditingTitle(session.title)
+  }
+
+  const handleRenameSave = async (sessionId: string) => {
+    if (editingTitle.trim()) {
+      try {
+        await updateSessionTitle(sessionId, editingTitle)
+        onUpdateSession?.(sessionId, editingTitle)
+      } catch (error) {
+        console.error('[v0] Failed to update title:', error)
+      }
+    }
+    setEditingId(null)
+    setEditingTitle('')
+    setOpenMenuId(null)
+  }
+
+  const openDeleteDialog = (id: string) => {
+    setSessionToDelete(id)
+    setDeleteDialogOpen(true)
+    setOpenMenuId(null)
   }
 
   return (
@@ -80,7 +119,7 @@ export function Sidebar({
 
           <button
             onClick={onNewChat}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-accent hover:bg-accent/90 text-accent-foreground font-medium transition-colors"
+            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-sidebar-border bg-transparent text-sidebar-foreground hover:bg-sidebar-accent/50 transition-all duration-200 font-medium"
           >
             <Plus className="w-5 h-5" />
             Nouvelle conversation
@@ -104,14 +143,41 @@ export function Sidebar({
                   session={session}
                   isActive={session.id === currentSessionId}
                   onSelect={() => handleSelectSession(session.id)}
-                  onDelete={(e) => handleDeleteSession(e, session.id)}
+                  onRename={() => handleRenameStart(session)}
+                  onDelete={() => openDeleteDialog(session.id)}
                   isMenuOpen={openMenuId === session.id}
                   onMenuToggle={(open) => setOpenMenuId(open ? session.id : null)}
+                  isEditing={editingId === session.id}
+                  editingTitle={editingTitle}
+                  onEditingTitleChange={setEditingTitle}
+                  onEditingSave={() => handleRenameSave(session.id)}
+                  onEditingCancel={() => setEditingId(null)}
                 />
               ))}
             </div>
           )}
         </div>
+
+        {/* Delete confirmation dialog */}
+        <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Supprimer la conversation</AlertDialogTitle>
+              <AlertDialogDescription>
+                Cette action est irréversible.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Annuler</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDeleteSession}
+                className="bg-red-600 hover:bg-red-700"
+              >
+                Supprimer
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* Footer */}
         <div className="p-4 border-t border-sidebar-border space-y-2">
@@ -154,17 +220,62 @@ function SessionItem({
   session,
   isActive,
   onSelect,
+  onRename,
   onDelete,
   isMenuOpen,
   onMenuToggle,
+  isEditing,
+  editingTitle,
+  onEditingTitleChange,
+  onEditingSave,
+  onEditingCancel,
 }: {
   session: ChatSession
   isActive: boolean
   onSelect: () => void
-  onDelete: (e: React.MouseEvent) => void
+  onRename: () => void
+  onDelete: () => void
   isMenuOpen: boolean
   onMenuToggle: (open: boolean) => void
+  isEditing: boolean
+  editingTitle: string
+  onEditingTitleChange: (title: string) => void
+  onEditingSave: () => void
+  onEditingCancel: () => void
 }) {
+  if (isEditing) {
+    return (
+      <div className="px-3 py-2.5 rounded-lg bg-sidebar-accent/30 border border-sidebar-accent flex items-center gap-2">
+        <MessageSquare className="w-4 h-4 flex-shrink-0" />
+        <input
+          type="text"
+          value={editingTitle}
+          onChange={(e) => onEditingTitleChange(e.target.value)}
+          autoFocus
+          className="flex-1 bg-transparent text-sm outline-none text-sidebar-foreground"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') onEditingSave()
+            if (e.key === 'Escape') onEditingCancel()
+          }}
+        />
+        <button
+          onClick={onEditingSave}
+          className="p-1 hover:bg-sidebar-accent rounded transition-colors"
+          title="Enregistrer"
+        >
+          <Check className="w-4 h-4 text-green-500" />
+        </button>
+        <button
+          onClick={onEditingCancel}
+          className="p-1 hover:bg-sidebar-accent rounded transition-colors"
+          title="Annuler"
+        >
+          <X className="w-4 h-4 text-red-500" />
+        </button>
+      </div>
+    )
+  }
+
   return (
     <div className="relative group">
       <button
@@ -181,26 +292,41 @@ function SessionItem({
         </div>
       </button>
 
-      {/* Menu button */}
+      {/* Context menu button */}
       <div className="absolute right-2 top-2.5">
         <button
           onClick={(e) => {
             e.stopPropagation()
             onMenuToggle(!isMenuOpen)
           }}
-          className={`p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity ${
-            isMenuOpen ? 'opacity-100 bg-sidebar-accent/50' : 'hover:bg-sidebar-accent/50'
+          className={`p-1 rounded transition-all duration-150 ${
+            isMenuOpen ? 'opacity-100 bg-sidebar-accent/50' : 'opacity-0 group-hover:opacity-100 hover:bg-sidebar-accent/50'
           }`}
+          title="Menu"
         >
           <MoreVertical className="w-4 h-4" />
         </button>
 
-        {/* Dropdown menu */}
+        {/* Context menu dropdown */}
         {isMenuOpen && (
           <div className="absolute right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-10 min-w-max">
             <button
-              onClick={onDelete}
-              className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-500/10 flex items-center gap-2 rounded-lg transition-colors"
+              onClick={(e) => {
+                e.stopPropagation()
+                onRename()
+              }}
+              className="w-full text-left px-3 py-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent/50 flex items-center gap-2 rounded-t-lg transition-colors"
+            >
+              <Edit2 className="w-4 h-4" />
+              Renommer
+            </button>
+            <div className="border-t border-border" />
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete()
+              }}
+              className="w-full text-left px-3 py-2 text-sm text-red-500 hover:bg-red-500/10 flex items-center gap-2 rounded-b-lg transition-colors"
             >
               <Trash2 className="w-4 h-4" />
               Supprimer

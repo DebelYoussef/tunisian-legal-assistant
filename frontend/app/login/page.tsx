@@ -119,13 +119,6 @@ export default function LoginPage() {
               'Se connecter'
             )}
           </button>
-
-          {/* Demo account info */}
-          <div className="p-3 rounded-lg bg-blue-500/10 border border-blue-500/20 text-sm text-blue-600 dark:text-blue-400">
-            <p className="font-medium mb-1">Compte démo :</p>
-            <p>Email: demo@example.com</p>
-            <p>Mot de passe: demo123</p>
-          </div>
         </form>
 
         {/* Footer */}
