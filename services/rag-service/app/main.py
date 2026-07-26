@@ -49,6 +49,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+from prometheus_fastapi_instrumentator import Instrumentator
+Instrumentator().instrument(app).expose(app)
+
 # NOTE: tighten allow_origins in production (e.g. to the API gateway / frontend domain).
 app.add_middleware(
     CORSMiddleware,

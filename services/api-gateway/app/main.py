@@ -49,6 +49,8 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+from prometheus_fastapi_instrumentator import Instrumentator
+Instrumentator().instrument(app).expose(app)
 # CORS: tighten allow_origins in production via a reverse proxy / env-driven
 # allow-list. Left permissive here since Nginx sits in front in this stack.
 app.add_middleware(
