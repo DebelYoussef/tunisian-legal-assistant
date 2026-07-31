@@ -19,9 +19,15 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 CREATE TABLE IF NOT EXISTS users (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email           TEXT NOT NULL UNIQUE,
-    password_hash   TEXT NOT NULL,
+    password_hash   TEXT,
+    google_id       TEXT UNIQUE,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+
+-- Migration for tables created before Google OAuth support was added.
+-- Both statements are safe to re-run on every startup.
+ALTER TABLE users ALTER COLUMN password_hash DROP NOT NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS google_id TEXT UNIQUE;
 
 CREATE TABLE IF NOT EXISTS sessions (
     id              UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
