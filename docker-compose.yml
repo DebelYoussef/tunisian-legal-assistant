@@ -14,6 +14,7 @@ volumes:
     name: tunisian-legal-assistant_postgres_data
   prometheus_data:
   grafana_data:
+  redis_data:
 
 services:
 
@@ -138,6 +139,8 @@ services:
       POSTGRES_PORT: 5432
       EMBEDDING_MODEL_NAME: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
       RAG_SERVICE_URL: http://rag-service:8002/rag
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
       INGESTION_SERVICE_URL: http://ingestion-service:8001
       JWT_SECRET: ${JWT_SECRET}
       JWT_ALGORITHM: ${JWT_ALGORITHM:-HS256}
@@ -235,5 +238,17 @@ services:
       - /var/run:/var/run:ro
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
+    networks:
+      - legal-net
+
+  # Redis: rate limiting / brute-force protection
+  redis:
+    image: redis:7-alpine
+    container_name: legal-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
     networks:
       - legal-net

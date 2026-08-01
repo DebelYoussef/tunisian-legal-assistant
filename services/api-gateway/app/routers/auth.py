@@ -13,6 +13,7 @@ from app.config import get_settings
 from app.database import get_db_pool
 from app.dependencies import get_current_user
 from app.models import TokenResponse, UserCreate, UserLogin, UserOut
+from app.rate_limiter import check_rate_limit, record_failed_attempt, reset_attempts
 from app.security import create_access_token, hash_password, verify_password
 
 logger = logging.getLogger("api-gateway.routers.auth")
@@ -66,9 +67,13 @@ async def register(payload: UserCreate, pool: asyncpg.Pool = Depends(get_db_pool
     summary="Authenticate and receive a JWT access token",
 )
 async def login(payload: UserLogin, pool: asyncpg.Pool = Depends(get_db_pool)) -> TokenResponse:
+    email = payload.email.lower()
+
+    await check_rate_limit(email)
+
     row = await pool.fetchrow(
         "SELECT id, password_hash FROM users WHERE email = $1",
-        payload.email.lower(),
+        email,
     )
 
     invalid_credentials = HTTPException(
@@ -81,11 +86,14 @@ async def login(payload: UserLogin, pool: asyncpg.Pool = Depends(get_db_pool)) -
         # Avoid leaking whether the email exists via timing differences by
         # still running a (dummy) bcrypt verification.
         verify_password(payload.password, "$2b$12$" + "0" * 53)
+        await record_failed_attempt(email)
         raise invalid_credentials
 
     if not verify_password(payload.password, row["password_hash"]):
+        await record_failed_attempt(email)
         raise invalid_credentials
 
+    await reset_attempts(email)
     settings = get_settings()
     token = create_access_token(subject=str(row["id"]))
     logger.info("User logged in: %s", row["id"])
