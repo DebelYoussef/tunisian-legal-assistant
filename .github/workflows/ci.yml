@@ -21,6 +21,9 @@ jobs:
           POSTGRES_PASSWORD=${{ secrets.POSTGRES_PASSWORD }}
           POSTGRES_USER=${{ secrets.POSTGRES_USER }}
           POSTGRES_DB=${{ secrets.POSTGRES_DB }}
+          GOOGLE_CLIENT_ID=${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET=${{ secrets.GOOGLE_CLIENT_SECRET }}
+          GOOGLE_REDIRECT_URI=${{ secrets.GOOGLE_REDIRECT_URI }}
           EOF
       - name: Build Docker images
         run: docker compose build
